@@ -6,5 +6,6 @@ defmodule GenerationalCache.Version do
   locking,
   """
 
-  @callback handle_update(GenerationalCache.data, integer) :: {:ok, GenerationalCache.data, integer} | :error
+  @callback handle_insert(GenerationalCache.data, any) :: :ok | {:error, GenerationalCache.version}
+  @callback handle_update(GenerationalCache.data, GenerationalCache.data, integer, any) :: {:ok, GenerationalCache.data, integer} | :error
 end

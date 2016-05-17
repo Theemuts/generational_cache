@@ -6,12 +6,14 @@ defmodule GenerationalCache.Shard.PoolsSupervisor do
   @doc false
   @spec start_link() :: GenServer.on_start
   def start_link() do
+    IO.puts "Start pools sup"
     Supervisor.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
   @doc false
   @spec init(:ok) :: {:ok, tuple}
   def init(:ok) do
+    IO.puts "init pools sup"
     shards = Application.get_env(:generational_cache, :shards, 2)
 
     0..shards-1

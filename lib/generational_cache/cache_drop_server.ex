@@ -27,41 +27,23 @@ defmodule GenerationalCache.CacheDropServer do
   end
 
   def handle_call(:drop_cold_cache, _from, %{shards: shards, tables: tables} = s) do
-    0..shards-1
-    |> Enum.map(fn(shard) ->
-         pool = Util.get_pool_name(shard)
-         tables = Map.fetch!(tables, shard)
-         true = lock_shard(pool)
-         :ok = await_shard_unaccessed(pool)
-         true = do_drop(tables)
-         true = unlock_shard(pool)
-       end)
+    Enum.map(0..shards-1, fn(shard) ->
+      pool = Util.get_pool_name(shard)
+      tables = Map.fetch!(tables, shard)
+      :ok = lock_shard(pool)
+      :ok = do_drop(tables)
+      :ok = unlock_shard(pool)
+    end)
+
     {:reply, :ok, s}
   end
 
   defp lock_shard(pool) do
-    set_lock(pool)
+    SpaghettiPool.lock(pool)
   end
 
   defp unlock_shard(pool) do
-    set_lock(pool, 0)
-  end
-
-  defp set_lock(pool, lock \\ 1) do
-    :ets.insert(GenerationalCache.Locks, {pool, lock})
-  end
-
-  defp await_shard_unaccessed(pool) do
-    # TODO: What to do on timeout?
-    avail = GenServer.call(pool, :get_avail_workers)
-    all = GenServer.call(pool, :get_all_workers)
-
-    case length(all) do
-     l when l == length(avail) -> :ok
-    _ ->
-      :timer.sleep(10)
-      await_shard_unaccessed(pool)
-    end
+    SpaghettiPool.unlock(pool)
   end
 
   defp do_drop({hot, cold, waiting}) do
@@ -71,6 +53,6 @@ defmodule GenerationalCache.CacheDropServer do
     ^hot = :ets.new(hot, [:named_table, :public, :set, read_concurrency: true]) # Hot table is newly created
     :ets.give_away(hot, pid, [])
     Task.start(fn -> :ets.delete(waiting) end) # Delete old cold cache asynchronously.
-    true
+    :ok
   end
 end

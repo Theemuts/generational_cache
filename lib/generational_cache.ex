@@ -8,7 +8,8 @@ defmodule GenerationalCache do
   @type data :: any
   @type version :: integer
   @type version_handler :: Module.t
-  @type result :: :error | {:ok, {data, version}}
+  @type version_or_handler :: version | version_handler
+  @type result :: :error | {:ok, {key, data, version}}
 
   @doc """
   Retrieve a key from the cache. It gets a worker from the worker pool of the
@@ -21,7 +22,7 @@ defmodule GenerationalCache do
   @spec get(key) :: result
   def get(key) do
     fun = &Worker.get(&1, key)
-    perform(fun, key)
+    perform(fun, :read, key)
   end
 
   @doc """
@@ -36,10 +37,10 @@ defmodule GenerationalCache do
     version handling.
      - `async`: If set to true, the insert is handled asynchronously. False by default.
   """
-  @spec insert(key, data, version | version_handler, boolean) :: :ok
-  def insert(key, data, version \\ -1, async \\ false) do
-    fun = &Worker.insert(&1, key, data, version, async)
-    perform(fun, key)
+  @spec insert(key, data, version_or_handler, boolean) :: :ok
+  def insert(key, data, version_or_handler \\ -1, async \\ false) do
+    fun = &Worker.insert(&1, key, data, version_or_handler, async)
+    perform(fun, {:write, key}, key)
   end
 
   @doc """
@@ -48,12 +49,13 @@ defmodule GenerationalCache do
   @spec delete(key, boolean) :: :ok
   def delete(key, async \\ false) do
     fun = &Worker.delete(&1, key, async)
-    perform(fun, key)
+    perform(fun, {:write, key}, key)
   end
 
-  defp perform(fun, key) do
+  @spec perform(fun, :read | {:write, key}, key) :: result | :ok
+  defp perform(fun, type, key) do
     key
     |> Util.store_in
-    |> Pool.transaction(fun)
+    |> Pool.transaction(type, fun)
   end
 end

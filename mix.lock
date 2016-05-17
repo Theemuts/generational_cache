@@ -1,1 +1,1 @@
-%{"poolboy": {:hex, :poolboy, "1.5.1"}}
+%{"spaghetti_pool": {:git, "https://github.com/theemuts/spaghetti_pool.git", "93a82739965b4f2a93219922ca7359453dfbcf80", [branch: "master"]}}
