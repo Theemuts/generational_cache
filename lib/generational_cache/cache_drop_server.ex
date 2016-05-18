@@ -1,17 +1,28 @@
 defmodule GenerationalCache.CacheDropServer do
-  @moduledoc false
+  @moduledoc """
+  This `GenServer` is called when the maximum size of the cache is exceeded.
+  It will lock a shard, rename its tables and delete the cold data, and
+  unlock the shard before moving on to the next.
+
+  Currently, this is the only expiry mechanism besides explicit deletion. This
+  module is not for public use, calling `drop_cold_cache/0` before a previous
+  call has completed will result in a crash.
+  """
 
   alias GenerationalCache.Util
   use GenServer
 
+  @doc false
   def start_link do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
+  @doc false
   def drop_cold_cache do
     GenServer.call(__MODULE__, :drop_cold_cache)
   end
 
+  @doc false
   def init(:ok) do
     shards = Application.get_env(:generational_cache, :shards, 2)
 
@@ -22,6 +33,7 @@ defmodule GenerationalCache.CacheDropServer do
     {:ok, %{tables: tables, shards: shards}}
   end
 
+  @doc false
   def handle_call(:drop_cold_cache, _from, %{shards: shards, tables: tables} = s) do
     Enum.map(0..shards-1, fn(shard) ->
       pool = Util.get_pool_name(shard)

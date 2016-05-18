@@ -5,9 +5,6 @@ defmodule GenerationalCache.TableManager do
   is the hot cache, the second the cold cache, and the third is used when
   dropping the cold cache if the maximum cache size is exceeded.
 
-  A lock table is also created, so we can block access to the shard when the
-  cold cache is dropped.
-
   Currently, if this process crashes all tables are lost.
   """
   use GenServer

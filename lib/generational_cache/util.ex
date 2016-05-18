@@ -1,5 +1,7 @@
 defmodule GenerationalCache.Util do
-  @moduledoc false
+  @moduledoc """
+  Helper functions mostly intended for internal use.
+  """
 
   @doc """
   Computes the shard data should be stored in. Accepts integer and strings.
@@ -10,6 +12,8 @@ defmodule GenerationalCache.Util do
   This method has been chosen because its results are consistent and works
   with both UUIDs and other string-based id-schemes.
   """
+  # TODO: Enforcing power-of-2 shards might avoid rem. Measure this.
+  @spec store_in(GenerationalCache.key) :: atom
   def store_in(id) when is_integer(id) do
     shards = Application.get_env(:generational_cache, :shards, 2)
     id
@@ -27,10 +31,18 @@ defmodule GenerationalCache.Util do
     |> get_pool_name
   end
 
+  @doc """
+  Returns the name of the pool associated with the given shard.
+  """
+  @spec get_pool_name(integer) :: atom
   def get_pool_name(shard) do
     Module.concat([GenerationalCache, "Shard#{shard}", Pool])
   end
 
+  @doc """
+  Returns the tables associated with the given shard.
+  """
+  @spec get_table_names(integer) :: {atom, atom, atom}
   def get_table_names(shard) do
     hot = table_name(shard, :hot)
     cold = table_name(shard, :cold)
@@ -39,6 +51,13 @@ defmodule GenerationalCache.Util do
     {hot, cold, dropped}
   end
 
+  @doc """
+  Returns the current cache size in the given unit. Accepted units are:
+    - `:kb`
+    - `:mb`
+    - `:gb`
+  """
+  @spec calculate_size(:kb | :mb | :gb) :: integer
   def calculate_size(unit) do
     shards = Application.get_env(:generational_cache, :shards, 2) - 1
     0..shards

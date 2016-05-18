@@ -1,6 +1,7 @@
 defmodule GenerationalCache.Version.Unversioned do
   @moduledoc """
-  Default version handler, never blocks insert.
+  Default version handler, never blocks insert, but always allows overwriting
+  the (possibly) existing entry.
   """
 
   @behaviour GenerationalCache.Version

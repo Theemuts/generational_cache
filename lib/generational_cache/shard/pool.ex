@@ -11,7 +11,6 @@ defmodule GenerationalCache.Shard.Pool do
     pool_name = GenerationalCache.Util.get_pool_name(shard)
     sup_name = Module.concat([GenerationalCache, "Shard#{shard}", Pool, Supervisor])
 
-    IO.puts "Start pool #{shard}"
     opts = [worker_module: Worker,
             name: {:local, pool_name},
             size: Application.get_env(:generational_cache, :shard_pool_size, 10),

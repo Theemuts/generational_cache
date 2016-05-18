@@ -31,6 +31,5 @@ defmodule GenerationalCache.TableManagerTest do
 
     :timer.sleep(100)
     assert Process.whereis(TableManager)
-    :timer.sleep(100)
   end
 end

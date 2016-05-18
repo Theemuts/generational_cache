@@ -7,17 +7,26 @@ defmodule GenerationalCache.Version.Lock do
   To use this handler, pass `{GenerationalCache.Version.Lock, field}` as third
   parameter to `GenerationalCache.insert/4`. In this tuple, `field` must be
   the field that contains the version of the map.
+
+  If you try to insert data which is not a map, or lacks the given lock-field,
+  this function returns `:error`.
   """
 
   @behaviour GenerationalCache.Version
 
   @doc false
+  def handle_insert(new_data, _, _, _) when not is_map(new_data), do: :error
+
   def handle_insert(new_data, nil, nil, field) do
-    new_version = Map.fetch!(new_data, field)
-    {:ok, {new_data, new_version}}
+    if Map.has_key?(new_data, field) do
+      new_version = new_data[field]
+      {:ok, {new_data, new_version}}
+    else
+      :error
+    end
   end
 
-  def handle_insert(new_data, current_data, current_version, field) do
+  def handle_insert(new_data, _current_data, current_version, field) do
     new_version = Map.fetch!(new_data, field)
     if new_version >= current_version, do: {:ok, {new_data, new_version}}, else: :error
   end
