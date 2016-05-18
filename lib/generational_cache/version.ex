@@ -7,7 +7,7 @@ defmodule GenerationalCache.Version do
     - `current_data`: the data which is currently cached.
     - `current_version`: the version of the data which is currently cached.
     - `opts`: options, can be set by setting the third parameter in
-    `GenerationalCache.insert/4` to `{MyVersion, opts}`. Defaults to an empty
+    `GenerationalCache.insert/5` to `{MyVersion, opts}`. Defaults to an empty
     list if only the module is given as third parameter.
 
   This function should return either `:error` if the new data is stale and

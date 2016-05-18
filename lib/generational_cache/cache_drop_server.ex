@@ -13,6 +13,7 @@ defmodule GenerationalCache.CacheDropServer do
   use GenServer
 
   @doc false
+  @spec start_link :: GenServer.start_link
   def start_link do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
@@ -21,11 +22,13 @@ defmodule GenerationalCache.CacheDropServer do
   Delete all data in the current cold caches, turn the hot caches into the old
   caches and create a new hot caches.
   """
+  @spec drop_cold_cache :: true
   def drop_cold_cache do
     GenServer.call(__MODULE__, :drop_cold_cache)
   end
 
   @doc false
+  @spec init(:ok) :: {:ok, map}
   def init(:ok) do
     shards = Application.get_env(:generational_cache, :shards, 2)
 
@@ -37,6 +40,7 @@ defmodule GenerationalCache.CacheDropServer do
   end
 
   @doc false
+  @spec handle_call(:drop_cold_cache, any, map) :: {:reply, true, map}
   def handle_call(:drop_cold_cache, _from, %{shards: shards, tables: tables} = s) do
     Enum.map(0..shards-1, fn(shard) ->
       pool = Util.get_pool_name(shard)
@@ -46,23 +50,26 @@ defmodule GenerationalCache.CacheDropServer do
       :ok = unlock_shard(pool)
     end)
 
-    {:reply, :ok, s}
+    {:reply, true, s}
   end
 
+  @spec lock_shard(atom) :: :ok
   defp lock_shard(pool) do
     SpaghettiPool.lock(pool)
   end
 
+  @spec lock_shard(atom) :: :ok
   defp unlock_shard(pool) do
     SpaghettiPool.unlock(pool)
   end
 
+  @spec do_drop({atom, atom, atom}) :: :ok
   defp do_drop({hot, cold, waiting}) do
     waiting = :ets.rename(cold, waiting) # Cold table is now the waiting table
     ^cold = :ets.rename(hot, cold) # Hot table is now the cold table
     pid = Process.whereis(GenerationalCache.TableManager)
     ^hot = :ets.new(hot, [:named_table, :public, :set, read_concurrency: true]) # Hot table is newly created
-    :ets.give_away(hot, pid, [])
+    true = :ets.give_away(hot, pid, [])
     Task.start(fn -> :ets.delete(waiting) end) # Delete old cold cache asynchronously.
     :ok
   end

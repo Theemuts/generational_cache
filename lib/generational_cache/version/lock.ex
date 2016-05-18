@@ -5,7 +5,7 @@ defmodule GenerationalCache.Version.Lock do
   locked Ecto data.
 
   To use this handler, pass `{GenerationalCache.Version.Lock, field}` as third
-  parameter to `GenerationalCache.insert/4`. In this tuple, `field` must be
+  parameter to `GenerationalCache.insert/5`. In this tuple, `field` must be
   the field that contains the version of the map.
 
   If you try to insert data which is not a map, or lacks the given lock-field,

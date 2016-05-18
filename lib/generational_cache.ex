@@ -11,27 +11,26 @@ defmodule GenerationalCache do
   cache is created.
 
   There are several settings you can adjust in your configuration file by
-  setting `config, :generational_cache, [k1: v1, ..., kn: vn]`. They are:
+  setting `config :generational_cache, [k1: v1, ..., kn: vn]`. They are:
 
     - `:shards`, the number of shards. Defaults to 2.
     - `:shard_pool_size`, the number of workers a shard has. Defaults to 10.
     - `:shard_max_overflow`, the maximum number of additional workers a shard
     creates. Defaults to 10.
     - `:size_monitor_interval`, the time in milliseconds that the size monitor
-    sleeps before checking the cache size again.
+    sleeps before checking the cache size again. Defaults to 60000.
     - `:max_size`, the maximum size of all ETS tables used by this
     application. Expects a tuple `{value, unit}`, where value is an integer
     and `unit` either `:kb`, `:mb`, or `:gb`. Defaults to `{1, :gb}`.
 
   It is recommended that you use some versioning system to avoid overwriting
-  more recent entries with stale data. See `GenerationalCache.insert/4` for
-  more information.
+  more recent entries with stale data. See `GenerationalCache.insert/5` and
+  `GenerationalCache.Version` for more information.
   """
 
   alias GenerationalCache.Shard.Pool
   alias GenerationalCache.Shard.Pool.Worker
   alias GenerationalCache.Util
-  alias GenerationalCache.Version.Unversioned
 
   @timeout 5_000
 
@@ -48,8 +47,8 @@ defmodule GenerationalCache do
 
   This function expects two arguments:
     - `key`: the key you want to look up.
-     - `timeout`: The maximum time in milliseconds spent waiting for a worker
-     before timing out. 5000 milliseconds by default.
+    - `timeout`: The maximum time in milliseconds spent waiting for a worker
+    before timing out. 5000 milliseconds by default.
 
   If the key is found, it is returned as a tuple:
   `{:ok, {key, data, version}}`. If it is not found, `:error` is returned.
@@ -79,7 +78,8 @@ defmodule GenerationalCache do
   handling with the `GenerationalCache.Version` behaviour. If the data you are
   inserting is optimistically locked Ecto data, you can use
   `{GenerationalCache.Version.Lock, field}` (replace `field` with the field
-  that holds the lock value).
+  that holds the lock value). See `GenerationalCache.Version.Lock` for more
+  information.
 
   This function always returns `:ok`.
   """

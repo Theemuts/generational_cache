@@ -57,7 +57,7 @@ defmodule GenerationalCache.Util do
     - `:mb`
     - `:gb`
   """
-  @spec calculate_size(:kb | :mb | :gb) :: integer
+  @spec calculate_size(:kb | :mb | :gb) :: float
   def calculate_size(unit) do
     shards = Application.get_env(:generational_cache, :shards, 2) - 1
     0..shards

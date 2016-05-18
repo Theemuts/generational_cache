@@ -1,15 +1,14 @@
 defmodule GenerationalCache.Shard.Pool.Worker do
   @moduledoc """
-  The Worker module. Each cache shard has a pool of workers assigned to it,
+  The worker module. Each cache shard has a pool of workers assigned to it,
   managed by `SpaghettiPool`. This module is for internal use only.
   """
 
   @type state :: map
   @type get :: {:get, GenerationalCache.key}
-  @type insert :: {:insert, {GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}}
+  @type insert :: {:insert, {GenerationalCache.key, GenerationalCache.data, GenerationalCache.version_or_handler}}
   @type delete :: {:delete, GenerationalCache.key}
-  @type get_reply :: {:ok, {GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}} | :error
-  @type call_reply :: {:reply, get_reply | :ok, state}
+  @type call_reply :: {:reply, GenerationalCache.result | :ok, state}
 
   @retry_count 5
 
@@ -24,8 +23,8 @@ defmodule GenerationalCache.Shard.Pool.Worker do
   end
 
   @doc """
-  Look for a key in the shard. First, we'll try to find the key in the hot
-  cache, if we don't find it, we'll look for it in the cold cache. If a
+  Look for a key in the shard. First, we'll try to find the key in the shard's
+  hot cache, if we don't find it, we'll look for it in the cold cache. If a
   result is found in the cold cache, it is inserted into the hot cache and
   deleted from the cold cache.
 
@@ -135,14 +134,14 @@ defmodule GenerationalCache.Shard.Pool.Worker do
     {:noreply, s}
   end
 
-  @spec handle_cold_lookup(GenerationalCache.key, atom, atom) ::  get_reply
+  @spec handle_cold_lookup(GenerationalCache.key, atom, atom) :: GenerationalCache.result
   defp handle_cold_lookup(key, cold, hot) do
     cold
     |> :ets.lookup(key)
     |> move_to_hot(cold, hot)
   end
 
-  @spec move_to_hot({GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}, atom, atom) ::  get_reply
+  @spec move_to_hot({GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}, atom, atom) :: GenerationalCache.result
   defp move_to_hot([{key, data, version}], cold, hot) do
     do_insert(key, data, version, hot, cold)
     :ets.delete(cold, key)
@@ -151,7 +150,7 @@ defmodule GenerationalCache.Shard.Pool.Worker do
 
   defp move_to_hot([], _, _), do: :error
 
-  @spec do_get(GenerationalCache.key, atom, atom) :: get_reply
+  @spec do_get(GenerationalCache.key, atom, atom) :: GenerationalCache.result
   defp do_get(key, hot, cold) do
     case :ets.lookup(hot, key) do
       [result] -> {:ok, result}
@@ -197,6 +196,7 @@ defmodule GenerationalCache.Shard.Pool.Worker do
     :ets.delete(cold, key)
   end
 
+  @spec check_version({Module.t, any} | Module.t, GenerationalCache.data, GenerationalCache.data, GenerationalCache.version) :: :error | {:ok, {GenerationalCache.data, GenerationalCache.version}}
   defp check_version({handler, opts}, data, old_data, old_version) do
     handler.handle_insert(data, old_data, old_version, opts)
   end
@@ -205,6 +205,7 @@ defmodule GenerationalCache.Shard.Pool.Worker do
     handler.handle_insert(data, old_data, old_version, [])
   end
 
+  @spec maybe_insert(:error | {:ok, {GenerationalCache.data, GenerationalCache.version}}, GenerationalCache.key, atom, atom) :: boolean
   defp maybe_insert(:error, _, _, _), do: false
   defp maybe_insert({:ok, {data, version}}, key, h, c), do: do_insert(key, data, version, h, c)
 end
