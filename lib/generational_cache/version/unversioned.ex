@@ -1,9 +1,12 @@
 defmodule GenerationalCache.Version.Unversioned do
-  @moduledoc false
+  @moduledoc """
+  Default version handler, never blocks insert.
+  """
 
   @behaviour GenerationalCache.Version
 
-  def handle_update(new_data, _old_data, _old_version, _opts) do
+  @doc false
+  def handle_insert(new_data, _old_data \\ nil, _old_version \\ nil, _opts \\ nil) do
     {:ok, {new_data, -1}}
   end
 end

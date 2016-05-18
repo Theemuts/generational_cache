@@ -24,8 +24,8 @@ defmodule GenerationalCache.Shard.Pool do
 
   @doc false
   @spec transaction(Module.t, atom | {atom, any}, fun, integer) :: term
-  def transaction(pool, type, fun, max_retries \\ 5)
-  def transaction(pool, type, fun, _) do
-    SpaghettiPool.transaction(pool, type, fun)
+  def transaction(pool, type, fun, timeout)
+  def transaction(pool, type, fun, timeout) do
+    SpaghettiPool.transaction(pool, type, fun, timeout)
   end
 end
