@@ -12,9 +12,8 @@ defmodule GenerationalCache.TableManager do
   """
   use GenServer
 
-  @type lock_table :: GenerationalCache.Locks
   @type cache_tables :: [atom]
-  @type state :: [lock_table | cache_tables]
+  @type state :: cache_tables
   @type transfer :: {:"ETS-TRANSFER", pid, reference, []}
   @type init :: {:ok, state}
   @type info :: {:noreply, state}
@@ -40,8 +39,7 @@ defmodule GenerationalCache.TableManager do
     |> Enum.chunk(2, 3)
     |> Enum.map(&Enum.map(&1, fn(t) -> :ets.new(t, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true]) end))
 
-    locks = :ets.new(GenerationalCache.Locks, [:named_table, :public, :set, read_concurrency: true])
-    {:ok, [locks, tables]}
+    {:ok, tables}
   end
 
   # We get the table back during the cache drop process.

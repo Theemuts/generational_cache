@@ -17,10 +17,9 @@ defmodule GenerationalCache.TableManagerTest do
     |> Enum.chunk(2, 3)
     |> Enum.map(&Enum.map(&1, fn(t) -> :ets.delete(t) end))
 
-    :ets.delete(GenerationalCache.Locks)
     init = TableManager.init(:ok)
 
-    assert init == {:ok, [GenerationalCache.Locks, tables]}
+    assert init == {:ok, tables}
   end
 
   test "is restarted after crash" do

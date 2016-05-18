@@ -19,10 +19,6 @@ defmodule GenerationalCache.CacheDropServer do
     |> Enum.map(&({&1, Util.get_table_names(&1)}))
     |> Enum.into(%{})
 
-    0..shards-1
-    |> Enum.map(&Util.get_pool_name(&1))
-    |> Enum.map(&:ets.insert(GenerationalCache.Locks, {&1, 0}))
-
     {:ok, %{tables: tables, shards: shards}}
   end
 
