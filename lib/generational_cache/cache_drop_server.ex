@@ -17,7 +17,10 @@ defmodule GenerationalCache.CacheDropServer do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
-  @doc false
+  @doc """
+  Delete all data in the current cold caches, turn the hot caches into the old
+  caches and create a new hot caches.
+  """
   def drop_cold_cache do
     GenServer.call(__MODULE__, :drop_cold_cache)
   end
