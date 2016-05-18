@@ -1,1 +1,3 @@
-%{"poolboy": {:hex, :poolboy, "1.5.1"}}
+%{"earmark": {:hex, :earmark, "0.2.1"},
+  "ex_doc": {:hex, :ex_doc, "0.11.5"},
+  "spaghetti_pool": {:git, "https://github.com/theemuts/spaghetti_pool.git", "93a82739965b4f2a93219922ca7359453dfbcf80", [branch: "master"]}}

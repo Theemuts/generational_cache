@@ -15,7 +15,7 @@ defmodule GenerationalCache.Mixfile do
   #
   # Type "mix help compile.app" for more information
   def application do
-    [applications: [:logger],
+    [applications: [:logger, :spaghetti_pool],
      mod: {GenerationalCache.App, []}]
   end
 
@@ -32,6 +32,9 @@ defmodule GenerationalCache.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [{:poolboy, "~> 1.5"}]
+    [{:spaghetti_pool, git: "https://github.com/theemuts/spaghetti_pool.git", branch: "master"},
+     # Docs dependencies
+     {:earmark, "~> 0.2", only: :dev},
+     {:ex_doc, "~> 0.11", only: :dev}]
   end
 end

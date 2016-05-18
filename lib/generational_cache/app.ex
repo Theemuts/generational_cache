@@ -5,6 +5,8 @@ defmodule GenerationalCache.App do
   def start(_type, _args) do
     import Supervisor.Spec, warn: false
 
+    IO.puts "start app"
+
     children = [
       worker(GenerationalCache.TableManager, []),
       worker(GenerationalCache.CacheDropServer, []),

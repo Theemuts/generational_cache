@@ -16,6 +16,8 @@ defmodule GenerationalCache.TableManager do
   @type cache_tables :: [atom]
   @type state :: [lock_table | cache_tables]
   @type transfer :: {:"ETS-TRANSFER", pid, reference, []}
+  @type init :: {:ok, state}
+  @type info :: {:noreply, state}
 
   @doc false
   @spec start_link() :: GenServer.on_start
@@ -24,7 +26,7 @@ defmodule GenerationalCache.TableManager do
   end
 
   @doc false
-  @spec init(:ok) :: {:ok, state}
+  @spec init(:ok) :: init
   def init(:ok) do
     shards = Application.get_env(:generational_cache, :shards, 2)
 
@@ -44,7 +46,7 @@ defmodule GenerationalCache.TableManager do
 
   # We get the table back during the cache drop process.
   @doc false
-  @spec handle_info(transfer, state) :: {:noreply, state}
+  @spec handle_info(transfer, state) :: info
   def handle_info({:"ETS-TRANSFER", _, _, []}, s) do
     {:noreply, s}
   end

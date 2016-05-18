@@ -1,9 +1,21 @@
 defmodule GenerationalCache.Shard.Pool.Worker do
-  @moduledoc false
+  @moduledoc """
+  The Worker module. Each cache shard has a pool of workers assigned to it,
+  managed by `SpaghettiPool`. This module is for internal use only.
+  """
+
+  @type state :: map
+  @type get :: {:get, GenerationalCache.key}
+  @type insert :: {:insert, {GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}}
+  @type delete :: {:delete, GenerationalCache.key}
+  @type get_reply :: {:ok, {GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}} | :error
+  @type call_reply :: {:reply, get_reply | :ok, state}
 
   @retry_count 5
 
   use GenServer
+
+  alias GenerationalCache.Version.Unversioned
 
   @doc false
   @spec start_link({atom, atom, atom}) :: GenServer.on_start
@@ -12,28 +24,38 @@ defmodule GenerationalCache.Shard.Pool.Worker do
   end
 
   @doc """
-  Find a key in the shard. First, we'll try to find the key in the hot cache,
-  if we don't find it, we'll look for it in the cold cache. If a result is
-  found in the cold cache, it is inserted into the hot cache. If a result is
-  found in either cache, {:ok, key, data, version} is returned. If no value is
-  found, :error is returned.
+  Look for a key in the shard. First, we'll try to find the key in the hot
+  cache, if we don't find it, we'll look for it in the cold cache. If a
+  result is found in the cold cache, it is inserted into the hot cache and
+  deleted from the cold cache.
+
+  Two parameters are required, they are:
+    - `worker`: the worker pid.
+    - `key`: the data key.
+
+  If a result is found in either cache, `{:ok, {key, data, version}}` is
+  returned. If no value is found, `:error` is returned.
   """
+  @spec get(pid, GenerationalCache.key) :: GenerationalCache.result
   def get(worker, key) do
     GenServer.call(worker, {:get, key})
   end
 
   @doc """
-  Insert a value into the cache. Four parameters are required, they are:
-    - worker: the worker pid
-    - key: the data key
-    - data: the actual data
-    - version: the current version of the data, required to prevent
-      overwriting newer data. If set to -1, it is ignored.
+  Insert a value into the cache.
 
-  A fifth parameter, async, is optional. Be default it is false, and your
-  insert does not return until the data is inserted. If it is set to true,
-  it returns immediately.
+  Five parameters are required, they are:
+    - `worker`: the worker pid.
+    - `key`: the data key.
+    - `data`: the actual data.
+    - `version`: the version of the data, or the version handler.
+    - `async`: if `true`, the function returns immediately and the insert is
+    handled asynchronously. If set to `false`, this function blocks until the
+    insert is completed.
+
+    This function always returns `:ok`.
   """
+  @spec insert(pid, GenerationalCache.key, GenerationalCache.data, GenerationalCache.version_or_handler, boolean) :: :ok
   def insert(worker, key, data, version, false) do
     GenServer.call(worker, {:insert, {key, data, version}})
   end
@@ -44,11 +66,18 @@ defmodule GenerationalCache.Shard.Pool.Worker do
 
   @doc """
   Delete a key from the shard. Removes the key and its associated data from
-  both the hot and cold shard, and returns :ok.
+  both the hot and cold cache.
 
-  It acceots two arguments, worker and key, and an optional third argument to
-  set asynchronicity.
+  Three parameters are required, they are:
+    - `worker`: the worker pid.
+    - `key`: the data key.
+    - `async`: if `true`, the function returns immediately and the delete is
+    handled asynchronously. If set to `false`, this function blocks until the
+    delete is completed.
+
+  This function always returns `:ok`.
   """
+  @spec delete(pid, GenerationalCache.key, boolean) :: :ok
   def delete(worker, key, false) do
     GenServer.call(worker, {:delete, key})
   end
@@ -57,130 +86,125 @@ defmodule GenerationalCache.Shard.Pool.Worker do
     GenServer.cast(worker, {:delete, key})
   end
 
-  def init({a, b, c}) do
-    {:ok, %{hot: a, cold: b, waiting: c}}
+  @doc false
+  @spec init({atom, atom, atom}) :: {:ok, state}
+  def init({hot, cold, dropped}) do
+    {:ok, %{hot: hot, cold: cold, dropped: dropped}}
   end
 
+  @spec handle_call(get | insert | delete, pid, state) :: call_reply
   def handle_call({:get, key}, _from, %{hot: h, cold: c} = s) do
-    data = case :ets.lookup(h, key) do
-      [{^key, data, version, _}] -> {:ok, key, data, version}
-      [] -> handle_cold_lookup(c, h, key)
-    end
-
+    data = do_get(key, h, c)
     {:reply, data, s}
   end
 
-  def handle_call({:insert, {key, data, version}}, _from, %{hot: h} = s) do
-    do_handle_insert(key, data, version, h)
+  def handle_call({:insert, {key, data, version_handler}}, _from, %{hot: h, cold: c} = s)
+      when is_atom(version_handler)
+      or is_tuple(version_handler) do
+    handle_insert(key, data, version_handler, h, c)
+    {:reply, :ok, s}
+  end
+
+  def handle_call({:insert, {key, data, version}}, _from, %{hot: h, cold: c} = s)
+      when is_integer(version) do
+    handle_insert(key, data, version, h, c)
     {:reply, :ok, s}
   end
 
   def handle_call({:delete, key}, _from, %{hot: h, cold: c} = s) do
-    handle_delete(h, c, key)
+    handle_delete(key, h, c)
     {:reply, :ok, s}
   end
 
-  def handle_cast({:insert, {key, data, version}}, %{hot: h} = s) do
-    do_handle_insert(key, data, version, h)
+  @doc false
+  @spec handle_cast(insert | delete, map) :: :ok
+  def handle_cast({:insert, {key, data, version_handler}}, %{hot: h, cold: c} = s)
+      when is_atom version_handler do
+    handle_insert(key, data, version_handler, h, c)
+    {:noreply, s}
+  end
+
+  def handle_cast({:insert, {key, data, version}}, %{hot: h, cold: c} = s)
+      when is_integer(version) do
+    handle_insert(key, data, version, h, c)
     {:noreply, s}
   end
 
   def handle_cast({:delete, key}, %{hot: h, cold: c} = s) do
-    handle_delete(h, c, key)
+    handle_delete(key, h, c)
     {:noreply, s}
   end
 
-  defp handle_cold_lookup(cold, hot, key) do
+  @spec handle_cold_lookup(GenerationalCache.key, atom, atom) ::  get_reply
+  defp handle_cold_lookup(key, cold, hot) do
     cold
     |> :ets.lookup(key)
     |> move_to_hot(cold, hot)
   end
 
-  defp move_to_hot([{key, data, version, _}], cold, hot) do
-    if do_handle_insert(key, data, version, hot) do
-      :ets.delete(cold, key)
-      {:ok, key, data, version}
-    else
-      :error
-    end
+  @spec move_to_hot({GenerationalCache.key, GenerationalCache.data, GenerationalCache.version}, atom, atom) ::  get_reply
+  defp move_to_hot([{key, data, version}], cold, hot) do
+    do_insert(key, data, version, hot, cold)
+    :ets.delete(cold, key)
+    {:ok, {key, data, version}}
   end
 
   defp move_to_hot([], _, _), do: :error
 
-  defp do_handle_insert(key, data, version, hot, retry_count \\ 0)
-
-  defp do_handle_insert(key, data, version, hot, retry_count) when retry_count < @retry_count do
-    case acquire_lock(hot, key, data, version) do
-      1 when version == -1 and is_map(data) ->
-        [{^key, current_data, _, _}] = :ets.lookup(hot, key)
-        updated_at = Map.get(data, :updated_at)
-        current_updated_at = Map.get(current_data, :updated_at)
-        handle_unversioned_insert(hot, key, data, current_data, updated_at, current_updated_at)
-      1 when version == -1 ->
-        handle_unversioned_insert(hot, key, data, nil, nil, nil)
-      1 ->
-        [{^key, current_data, current_version, _}] = :ets.lookup(hot, key)
-        handle_insert(hot, key, data, current_data, version, current_version)
-      _ ->
-        wait_for = (2.2 |> :math.pow(retry_count) |> round)*6
-        :timer.sleep(wait_for)
-        do_wait(retry_count)
+  @spec do_get(GenerationalCache.key, atom, atom) :: get_reply
+  defp do_get(key, hot, cold) do
+    case :ets.lookup(hot, key) do
+      [result] -> {:ok, result}
+      [] -> handle_cold_lookup(key, cold, hot)
     end
   end
 
-  defp do_handle_insert(_, _, _, _, _), do: false
-
-  defp acquire_lock(hot, key, data \\ %{}, version \\ -1) do
-    :ets.update_counter(hot, key, {4, 1}, {key, data, version, 0})
+  @spec handle_insert(GenerationalCache.key, GenerationalCache.data, GenerationalCache.version_or_version_handler, atom, atom) :: boolean
+  defp handle_insert(key, data, Unversioned, h, c) do
+    {:ok, {^data, -1}} = Unversioned.handle_insert(data)
+    do_insert(key, data, -1, h, c)
   end
 
-  defp handle_unversioned_insert(h, key, data, _, updated_at, current_updated_at)
-      when updated_at > current_updated_at
-      when is_nil updated_at do
-    :ets.insert(h, {key, data, -1, 0})
+  defp handle_insert(key, data, version_handler, h, c) when is_atom(version_handler) or is_tuple(version_handler) do
+    {old_data, old_version} = case do_get(key, h, c) do
+      {:ok, {^key, old_data, old_version}} -> {old_data, old_version}
+      _ -> {nil, nil}
+    end
+
+    version_handler
+    |> check_version(data, old_data, old_version)
+    |> maybe_insert(key, h, c)
   end
 
-  defp handle_unversioned_insert(h, key, _, current_data, _, _) do
-    :ets.insert(h, {key, current_data, -1, 0})
-  end
-
-  # If updated_at-fields exist, use them. Insert newer values, with last write
-  # wins-strategy for equal update times.
-  defp handle_insert(h, key, data = %{updated_at: u1}, %{updated_at: u2}, version, _)
-      when u1 >= u2 do
-    :ets.insert(h, {key, data, version, 0})
-  end
-
-  # Ignore older versions.
-  defp handle_insert(_, _, %{updated_at: _}, %{updated_at: _}, _, _) do
-    true
-  end
-
-  # No update-field exists, so depend on the version. Same strategy for equal versions.
-  defp handle_insert(h, key, data, _, version, current_version)
-      when current_version <= version do
-    :ets.insert(h, {key, data, version, 0})
-  end
-
-  # Ignore older versions.
-  defp handle_insert(_, _, _, _, _, _) do
-    true
-  end
-
-  defp do_wait(retry_count) do
-    (2.2 |> :math.pow(retry_count) |> round)*6 |> :timer.sleep
-  end
-
-  defp handle_delete(hot, cold, key, retry_count \\ 0)
-
-  defp handle_delete(hot, cold, key, retry_count) when retry_count < @retry_count do
-    case acquire_lock(hot, key) do
-      1 ->
-        :ets.delete(hot, key)
-        :ets.delete(cold, key)
+  defp handle_insert(key, data, version, h, c) when is_integer version do
+    case do_get(key, h, c) do
+      {:ok, {^key, _old_data, old_version}} ->
+        if version >= old_version, do: do_insert(key, data, version, h, c)
       _ ->
-        do_wait(retry_count)
-        handle_delete(hot, cold, key, retry_count + 1)
+        do_insert(key, data, version, h, c)
     end
   end
+
+  @spec do_insert(GenerationalCache.key, GenerationalCache.data, GenerationalCache.version, atom, atom) :: true
+  defp do_insert(key, data, version, hot, cold) do
+    :ets.insert(hot, {key, data, version})
+    :ets.delete(cold, key)
+  end
+
+  @spec handle_delete(GenerationalCache.key, atom, atom) :: true
+  defp handle_delete(key, hot, cold) do
+    :ets.delete(hot, key)
+    :ets.delete(cold, key)
+  end
+
+  defp check_version({handler, opts}, data, old_data, old_version) do
+    handler.handle_insert(data, old_data, old_version, opts)
+  end
+
+  defp check_version(handler, data, old_data, old_version) do
+    handler.handle_insert(data, old_data, old_version, [])
+  end
+
+  defp maybe_insert(:error, _, _, _), do: false
+  defp maybe_insert({:ok, {data, version}}, key, h, c), do: do_insert(key, data, version, h, c)
 end
