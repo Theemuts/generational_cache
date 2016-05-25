@@ -5,9 +5,9 @@ defmodule GenerationalCache.TableManagerTest do
   alias GenerationalCache.TableManager
 
   test "initializes all tables" do
-    shards = Application.get_env(:generational_cache, :shards, 2)
-
-    tables = 0..shards-1
+    shards = Application.get_env(:generational_cache, :shards, 1)
+    max = (2 |> :math.pow(shards) |> trunc) - 1
+    tables = 0..max
     |> Enum.reduce([], fn(shard, acc) ->
          {a, b, c} = GenerationalCache.Util.get_table_names(shard)
          [a, b, c | acc]

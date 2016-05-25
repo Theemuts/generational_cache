@@ -13,8 +13,8 @@ defmodule GenerationalCache.Shard.Pool do
 
     opts = [worker_module: Worker,
             name: {:local, pool_name},
-            size: Application.get_env(:generational_cache, :shard_pool_size, 10),
-            max_overflow: Application.get_env(:generational_cache, :shard_max_overflow, 10)]
+            size: Application.get_env(:generational_cache, :shard_pool_size, 50),
+            max_overflow: Application.get_env(:generational_cache, :shard_max_overflow, 50)]
 
     children = [SpaghettiPool.child_spec(pool_name, opts, tables)]
     sup_opts = [strategy: :one_for_one, name: sup_name]
@@ -28,3 +28,6 @@ defmodule GenerationalCache.Shard.Pool do
     SpaghettiPool.transaction(pool, type, fun, timeout)
   end
 end
+
+# 50 / 50: [{1000, {32719.73, 5393.760894141581}}, {2000, {68492.83, 10494.694422012057}}]
+# 100/100: [{1000, {40825.62, 6701.08351069855}}, {2000, {85059.25, 14351.068301240679}}]

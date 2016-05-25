@@ -107,6 +107,52 @@ defmodule GenerationalCache do
     perform(fun, {:write, key}, key, timeout)
   end
 
+  def get_avg(list) do
+    Enum.reduce(list, &(&1+&2))/length(list)
+  end
+
+  def get_std(list, avg) do
+    :math.sqrt(Enum.reduce(list, &(:math.pow((&1-avg),2)+&2))/length(list))
+  end
+
+  def repeatedly(n, ch_s, m) do
+    y = for _ <- 1..m, do: test(n, ch_s)
+    :timer.sleep(50)
+    avg = get_avg(y)
+    std = get_std(y, avg)
+    {avg, std}
+  end
+
+  def test do
+    for i <- 1..20 do
+      {i*100, repeatedly(i*100, 30, 100)}
+    end
+  end
+
+  def test(n, ch_s) do
+    GenerationalCache.CacheDropServer.drop_cold_cache
+    :timer.sleep(50)
+    GenerationalCache.CacheDropServer.drop_cold_cache
+
+    i = 1..n
+    |> Enum.chunk(ch_s)
+
+    y = %{a: 1, b: 2, c: 3}
+
+    :timer.tc(fn ->
+      Enum.map(i, fn(chnk) ->
+        Task.async(fn ->
+          Enum.map(chnk, fn(el) ->
+            insert(el, y, GenerationalCache.Version.Unversioned, false, 1000000)
+          end)
+        end)
+      end)
+      |> Enum.map(&Task.await(&1, 10000000))
+      :ok
+    end)
+    |> elem(0)
+  end
+
   @spec perform(fun, :read | {:write, key}, key, integer) :: result | :ok
   defp perform(fun, type, key, timeout) do
     key

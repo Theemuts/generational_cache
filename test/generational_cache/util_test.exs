@@ -7,7 +7,7 @@ defmodule GenerationalCache.UtilTest do
   test "returns the pool a key is stored in" do
     assert Util.store_in(0) == GenerationalCache.Shard0.Pool
     assert Util.store_in(1) == GenerationalCache.Shard1.Pool
-    assert Util.store_in("A") == GenerationalCache.Shard1.Pool
+    assert Util.store_in("A") == GenerationalCache.Shard0.Pool
     assert Util.store_in("B") == GenerationalCache.Shard0.Pool
   end
 

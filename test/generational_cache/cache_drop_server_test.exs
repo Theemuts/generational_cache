@@ -10,7 +10,7 @@ defmodule GenerationalCache.CacheDropServerTest do
   end
 
   test "initializes state" do
-    assert CacheDropServer.init(:ok) == {:ok, %{shards: 2, tables: %{0 => {GenerationalCache.Shard0.Hot, GenerationalCache.Shard0.Cold, GenerationalCache.Shard0.Dropped}, 1 => {GenerationalCache.Shard1.Hot, GenerationalCache.Shard1.Cold, GenerationalCache.Shard1.Dropped}}}}
+    assert CacheDropServer.init(:ok) == {:ok, %{shards: 1, tables: %{0 => {GenerationalCache.Shard0.Hot, GenerationalCache.Shard0.Cold, GenerationalCache.Shard0.Dropped}, 1 => {GenerationalCache.Shard1.Hot, GenerationalCache.Shard1.Cold, GenerationalCache.Shard1.Dropped}}}}
   end
 
   test "is restarted after crash" do

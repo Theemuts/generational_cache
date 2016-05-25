@@ -14,21 +14,12 @@ defmodule GenerationalCache.Util do
   """
   # TODO: Enforcing power-of-2 shards might avoid rem. Measure this.
   @spec store_in(GenerationalCache.key) :: atom
-  def store_in(id) when is_integer(id) do
-    shards = Application.get_env(:generational_cache, :shards, 2)
-    id
-    |> rem(shards)
-    |> get_pool_name
-  end
-
-  def store_in(id) when is_binary(id) do
-    shards = Application.get_env(:generational_cache, :shards, 2)
-
-    id
-    |> to_char_list
-    |> Enum.reduce(&(&1 + &2))
-    |> rem(shards)
-    |> get_pool_name
+  def store_in(id) when is_integer(id) when is_binary(id) do
+    id = :erlang.term_to_binary(id)
+    shards = Application.get_env(:generational_cache, :shards, 1)
+    ignore = 8-shards
+    <<x::binary-size(19), _::size(ignore), shard::size(shards)>> = :crypto.hash(:sha, id)
+    get_pool_name(shard)
   end
 
   @doc """
@@ -59,8 +50,9 @@ defmodule GenerationalCache.Util do
   """
   @spec calculate_size(:kb | :mb | :gb) :: float
   def calculate_size(unit) do
-    shards = Application.get_env(:generational_cache, :shards, 2) - 1
-    0..shards
+    shards = Application.get_env(:generational_cache, :shards, 1)
+    max = (2 |> :math.pow(shards) |> trunc) - 1
+    0..max
     |> Enum.reduce(0, &((&1 |> get_table_names |> get_memory_size(unit)) + &2))
   end
 

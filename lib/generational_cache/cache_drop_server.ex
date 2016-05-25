@@ -30,9 +30,10 @@ defmodule GenerationalCache.CacheDropServer do
   @doc false
   @spec init(:ok) :: {:ok, map}
   def init(:ok) do
-    shards = Application.get_env(:generational_cache, :shards, 2)
+    shards = Application.get_env(:generational_cache, :shards, 1)
+    max = (2 |> :math.pow(shards) |> trunc) - 1
 
-    tables = 0..shards-1
+    tables = 0..max
     |> Enum.map(&({&1, Util.get_table_names(&1)}))
     |> Enum.into(%{})
 
@@ -42,12 +43,14 @@ defmodule GenerationalCache.CacheDropServer do
   @doc false
   @spec handle_call(:drop_cold_cache, any, map) :: {:reply, true, map}
   def handle_call(:drop_cold_cache, _from, %{shards: shards, tables: tables} = s) do
-    Enum.map(0..shards-1, fn(shard) ->
+    max = (2 |> :math.pow(shards) |> trunc) - 1
+    Enum.map(0..max, fn(shard) ->
       pool = Util.get_pool_name(shard)
       tables = Map.fetch!(tables, shard)
-      :ok = lock_shard(pool)
-      :ok = do_drop(tables)
-      :ok = unlock_shard(pool)
+      lock_shard(pool)
+      do_drop(tables)
+      unlock_shard(pool)
+      :ok
     end)
 
     {:reply, true, s}

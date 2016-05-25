@@ -12,9 +12,9 @@ defmodule GenerationalCache.Shard.PoolsSupervisor do
   @doc false
   @spec init(:ok) :: {:ok, tuple}
   def init(:ok) do
-    shards = Application.get_env(:generational_cache, :shards, 2)
-
-    0..shards-1
+    shards = Application.get_env(:generational_cache, :shards, 1)
+    max = (2 |> :math.pow(shards) |> trunc) - 1
+    0..max
     |> Enum.map(&supervisor(GenerationalCache.Shard.Pool, [&1], id: &1))
     |> supervise(strategy: :one_for_one)
   end
